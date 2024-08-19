@@ -1,13 +1,12 @@
 import torch
 import torch.nn.functional as F
-from lorenz import Lorentz
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-from ..lib.lorentz.layers.LMLR import LorentzMLR
-from ..lib.lorentz.manifold import CustomLorentz
+from lib.lorentz.layers.LMLR import LorentzMLR
+from lib.lorentz.manifold import CustomLorentz
 
 class HypMLR(nn.Module):
     def __init__(self,
@@ -26,7 +25,8 @@ class HypMLR(nn.Module):
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2)  # =>7x7x64
         )
-
+        self.layer_norm = nn.LayerNorm(hyp_dim)
+        self.magnitude = 0.5
         self.fc = nn.Linear(7 * 7 * 64, hyp_dim) # => hyp_dim
 
         self.output = nn.Linear(hyp_dim, class_num)
@@ -44,13 +44,15 @@ class HypMLR(nn.Module):
         x = self.conv_layers(x) # (N, 7, 7, 64)
         x = x.view(x.size(0), -1) # (N, 3136)
         x = self.fc(x) # (N, hyp_dim)
+        x = self.layer_norm(x)
+        x = x*self.magnitude
         x_hyperbolic = self.lorentz.expmap0(x)
         x = self.LorentzMLR(x_hyperbolic) # (N, class_num)
         return x
 
 batch_size = 64
 learning_rate = 0.001
-num_epochs = 20
+num_epochs = 10
 
 transform = transforms.Compose([
     transforms.ToTensor(),
